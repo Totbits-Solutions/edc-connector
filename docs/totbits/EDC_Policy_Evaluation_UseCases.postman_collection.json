@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "EDC - Casos de Uso Evaluacion de Politicas",
-    "description": "Coleccion con los 4 casos de uso de evaluacion de politicas en el EDC Connector.\n\nEjecutar las carpetas en orden:\n1. Setup Proveedor — Crear assets, policies y contract definitions\n2. Caso 1: catalog.request\n3. Caso 2: contract.negotiation\n4. Caso 3: transfer.process\n5. Caso 4: policy.monitor\n\nConfigurar las variables de la coleccion antes de ejecutar.",
+    "description": "# EDC - Casos de Uso: Evaluacion de Politicas\n\nColeccion de Postman que demuestra los **4 scopes de evaluacion de politicas ODRL** en el Eclipse Dataspace Connector (EDC).\n\n## Scopes de evaluacion\n\n| Scope | Momento | Quien evalua |\n|-------|---------|-------------|\n| `catalog.request` | Al solicitar el catalogo | Proveedor filtra assets visibles |\n| `contract.negotiation` | Al negociar contrato | Proveedor valida access + contract policy |\n| `transfer.process` | Al iniciar transferencia | Proveedor re-valida policy del agreement |\n| `policy.monitor` | Durante transferencia activa | Policy Monitor vigila expiracion continua |\n\n## Orden de ejecucion\n\n1. **Setup Proveedor** — Crear assets, policies y contract definitions\n2. **Caso 1: catalog.request** — Solicitar catalogo y ver filtrado\n3. **Caso 2: contract.negotiation** — Negociar contrato con la oferta\n4. **Caso 3: transfer.process** — Iniciar transferencia de datos\n5. **Caso 4: policy.monitor** — Demostrar expiracion temporal\n\n## Variables de coleccion\n\nConfigurar antes de ejecutar:\n\n| Variable | Valor por defecto | Descripcion |\n|----------|-------------------|-------------|\n| `PROVIDER_MANAGEMENT_URL` | `http://localhost:18181/api/management` | Management API del proveedor |\n| `CONSUMER_MANAGEMENT_URL` | `http://localhost:28181/api/management` | Management API del consumidor |\n| `PROVIDER_DSP_URL` | `http://localhost:18282/api/dsp/2025-1` | Endpoint DSP del proveedor (incluye version) |\n| `API_VERSION` | `v3` | Version de la Management API |\n| `PROTOCOL` | `dataspace-protocol-http:2025-1` | Protocolo DSP versionado (EDC 0.16.0+) |\n\nLas variables `negotiation_id`, `agreement_id`, `transfer_id` y `offer_id` se rellenan automaticamente mediante los test scripts.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -17,8 +17,8 @@
     },
     {
       "key": "PROVIDER_DSP_URL",
-      "value": "http://localhost:18282/api/dsp",
-      "description": "Protocolo DSP del proveedor (donde el consumidor contacta)"
+      "value": "http://localhost:18282/api/dsp/2025-1",
+      "description": "Protocolo DSP del proveedor con version (EDC 0.16.0 usa /2025-1)"
     },
     {
       "key": "CONSUMER_CALLBACK_URL",
@@ -27,8 +27,8 @@
     },
     {
       "key": "PROVIDER_ID",
-      "value": "proveedor-id",
-      "description": "Participant ID del proveedor"
+      "value": "provider",
+      "description": "Participant ID del proveedor (debe coincidir con el participantId del catalogo)"
     },
     {
       "key": "CONSUMER_RECEIVE_URL",
@@ -42,8 +42,8 @@
     },
     {
       "key": "PROTOCOL",
-      "value": "dataspace-protocol-http",
-      "description": "Protocolo DSP a usar"
+      "value": "dataspace-protocol-http:2025-1",
+      "description": "Protocolo DSP a usar (versionado desde EDC 0.16.0)"
     },
     {
       "key": "negotiation_id",
@@ -64,172 +64,325 @@
       "key": "offer_id",
       "value": "",
       "description": "Se rellena automaticamente al pedir el catalogo"
+    },
+    {
+      "key": "constraint_start",
+      "value": "",
+      "description": "Constraint temporal inicio - se extrae del catalogo automaticamente"
+    },
+    {
+      "key": "constraint_end",
+      "value": "",
+      "description": "Constraint temporal fin - se extrae del catalogo automaticamente"
     }
   ],
   "item": [
     {
       "name": "0. Setup Proveedor",
-      "description": "Crear assets, policy definitions y contract definitions en el proveedor. Ejecutar todos los requests de esta carpeta antes de pasar a los casos de uso.",
+      "description": "# Setup del Proveedor\n\nCrea todos los recursos necesarios en el conector **proveedor** antes de ejecutar los casos de uso.\n\n## Recursos que se crean\n\n**3 Assets (datasets):**\n- `dataset-publico` — Datos abiertos de transporte (acceso libre)\n- `dataset-partners` — Datos premium de energia (solo partners gold)\n- `dataset-streaming-iot` — Stream IoT en tiempo real (con contrato temporal)\n\n**5 Policy Definitions:**\n- `policy-acceso-abierto` — Permite uso sin restricciones (access policy)\n- `policy-acceso-partners-gold` — Requiere `partnerLevel = gold` (access policy)\n- `policy-acceso-denegado` — Prohibe todo uso (access policy de referencia)\n- `policy-contrato-estandar` — Contrato sin restricciones temporales\n- `policy-contrato-7-dias` — Contrato valido 7 dias desde la firma (`inForceDate`)\n\n**3 Contract Definitions (vinculan asset + access policy + contract policy):**\n- `contrato-publico` — dataset-publico + acceso abierto + contrato estandar\n- `contrato-partners` — dataset-partners + acceso partners gold + contrato estandar\n- `contrato-streaming-temporal` — dataset-streaming-iot + acceso abierto + contrato 7 dias\n\nEjecutar **todos** los requests de esta carpeta en orden antes de pasar a los casos de uso.",
       "item": [
         {
           "name": "0.1 Crear Asset - Dataset Publico",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "assets"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"Asset\",\n  \"@id\": \"dataset-publico\",\n  \"properties\": {\n    \"name\": \"Dataset Publico de Transporte\",\n    \"description\": \"Datos abiertos de transporte urbano\",\n    \"contenttype\": \"application/json\"\n  },\n  \"dataAddress\": {\n    \"@type\": \"DataAddress\",\n    \"type\": \"HttpData\",\n    \"baseUrl\": \"https://datos.proveedor.com/transporte\"\n  }\n}"
             }
-          }
+          },
+          "description": "Crea el asset `dataset-publico` en el proveedor.\n\n**Tipo de dato:** Datos abiertos de transporte urbano (JSON)\n**Data Address:** `https://datos.proveedor.com/transporte` (HttpData)\n\nEste asset tendra **acceso abierto** — cualquier consumidor podra verlo en el catalogo.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD del asset creado, incluyendo `@id: dataset-publico`."
         },
         {
           "name": "0.2 Crear Asset - Dataset Partners",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "assets"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"Asset\",\n  \"@id\": \"dataset-partners\",\n  \"properties\": {\n    \"name\": \"Dataset Premium de Energia\",\n    \"description\": \"Datos de consumo energetico - solo partners gold\",\n    \"contenttype\": \"application/json\"\n  },\n  \"dataAddress\": {\n    \"@type\": \"DataAddress\",\n    \"type\": \"HttpData\",\n    \"baseUrl\": \"https://datos.proveedor.com/energia\"\n  }\n}"
             }
-          }
+          },
+          "description": "Crea el asset `dataset-partners` en el proveedor.\n\n**Tipo de dato:** Datos premium de consumo energetico (JSON)\n**Data Address:** `https://datos.proveedor.com/energia` (HttpData)\n\nEste asset tendra **acceso restringido** — solo visible en el catalogo para consumidores con `partnerLevel = gold`.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD del asset creado."
         },
         {
           "name": "0.3 Crear Asset - Dataset Streaming IoT",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "assets"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"Asset\",\n  \"@id\": \"dataset-streaming-iot\",\n  \"properties\": {\n    \"name\": \"Stream IoT Sensores\",\n    \"description\": \"Datos en tiempo real de sensores IoT\",\n    \"contenttype\": \"application/json\"\n  },\n  \"dataAddress\": {\n    \"@type\": \"DataAddress\",\n    \"type\": \"HttpData\",\n    \"baseUrl\": \"https://datos.proveedor.com/iot-stream\"\n  }\n}"
             }
-          }
+          },
+          "description": "Crea el asset `dataset-streaming-iot` en el proveedor.\n\n**Tipo de dato:** Datos en tiempo real de sensores IoT (JSON)\n**Data Address:** `https://datos.proveedor.com/iot-stream` (HttpData)\n\nEste asset sera visible para todos, pero su contrato tendra **restriccion temporal** (7 dias). Se usa en el Caso 4 (policy.monitor) para demostrar la expiracion automatica.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD del asset creado."
         },
         {
           "name": "0.4 Crear Policy - Acceso Abierto",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "policydefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"PolicyDefinition\",\n  \"@id\": \"policy-acceso-abierto\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"Set\",\n    \"permission\": [\n      {\n        \"action\": \"use\"\n      }\n    ]\n  }\n}"
             }
-          }
+          },
+          "description": "Crea la policy `policy-acceso-abierto` de tipo **access policy**.\n\n**Tipo ODRL:** `Set` con `permission: [{ action: \"use\" }]` sin constraints.\n\nAl no tener restricciones, esta policy permite el acceso a **cualquier consumidor** que solicite el catalogo. Se usara como access policy en los contract definitions de `dataset-publico` y `dataset-streaming-iot`.\n\n**Scope de evaluacion:** `catalog.request` — el proveedor la evalua cuando un consumidor pide el catalogo.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD de la policy creada."
         },
         {
-          "name": "0.5 Crear Policy - Acceso Solo Partners Gold",
+          "name": "0.5 (SKIP) Policy Partners Gold - requiere extension custom",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "policydefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"PolicyDefinition\",\n  \"@id\": \"policy-acceso-partners-gold\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"Set\",\n    \"permission\": [\n      {\n        \"action\": \"use\",\n        \"constraint\": [\n          {\n            \"leftOperand\": \"partnerLevel\",\n            \"operator\": \"eq\",\n            \"rightOperand\": \"gold\"\n          }\n        ]\n      }\n    ]\n  }\n}"
             }
-          }
+          },
+          "description": "**SALTAR ESTE PASO** — Requiere una extension custom.\n\nEsta policy usa el constraint `partnerLevel eq gold`, que necesita una funcion custom registrada en el policy engine (AtomicConstraintRuleFunction) y vinculada al scope `catalog.request`. El runtime por defecto no la incluye.\n\nEn su lugar, el paso 0.10 usa `policy-acceso-denegado` (prohibicion) para demostrar el filtrado de acceso sin extensiones custom.\n\n**Si tienes la extension custom:** Ejecuta este paso y cambia el `accessPolicyId` del paso 0.10 a `policy-acceso-partners-gold`."
         },
         {
           "name": "0.6 Crear Policy - Acceso Denegado",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "policydefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"PolicyDefinition\",\n  \"@id\": \"policy-acceso-denegado\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"Set\",\n    \"prohibition\": [\n      {\n        \"action\": \"use\"\n      }\n    ]\n  }\n}"
             }
-          }
+          },
+          "description": "Crea la policy `policy-acceso-denegado` de tipo **access policy**.\n\n**Tipo ODRL:** `Set` con `prohibition: [{ action: \"use\" }]`.\n\nEsta policy **prohibe explicitamente** cualquier uso. Ningun consumidor vera los assets protegidos por esta policy en el catalogo.\n\nSe usa en el contract definition `contrato-partners` (paso 0.10) para ocultar `dataset-partners` del catalogo, demostrando el filtrado de acceso en el scope `catalog.request`.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD de la policy creada."
         },
         {
           "name": "0.7 Crear Policy - Contrato Estandar (sin restricciones)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "policydefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"PolicyDefinition\",\n  \"@id\": \"policy-contrato-estandar\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"Set\",\n    \"permission\": [\n      {\n        \"action\": \"use\"\n      }\n    ]\n  }\n}"
             }
-          }
+          },
+          "description": "Crea la policy `policy-contrato-estandar` de tipo **contract policy**.\n\n**Tipo ODRL:** `Set` con `permission: [{ action: \"use\" }]` sin constraints.\n\nAl no tener restricciones temporales ni de otro tipo, un contrato firmado con esta policy sera **valido indefinidamente**.\n\n**Scope de evaluacion:** `contract.negotiation` (al firmar) y `transfer.process` (al iniciar transferencia).\n\n**Respuesta esperada:** `200 OK` con el JSON-LD de la policy creada."
         },
         {
           "name": "0.8 Crear Policy - Contrato Temporal 7 Dias",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "policydefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"PolicyDefinition\",\n  \"@id\": \"policy-contrato-7-dias\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"Set\",\n    \"permission\": [\n      {\n        \"action\": \"use\",\n        \"constraint\": [\n          {\n            \"leftOperand\": \"edc:inForceDate\",\n            \"operator\": \"gteq\",\n            \"rightOperand\": \"contractAgreement+0s\"\n          },\n          {\n            \"leftOperand\": \"edc:inForceDate\",\n            \"operator\": \"lteq\",\n            \"rightOperand\": \"contractAgreement+7d\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+              "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"PolicyDefinition\",\n  \"@id\": \"policy-contrato-7-dias\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"Set\",\n    \"permission\": [\n      {\n        \"action\": \"use\",\n        \"constraint\": [\n          {\n            \"leftOperand\": \"https://w3id.org/edc/v0.0.1/ns/inForceDate\",\n            \"operator\": \"gteq\",\n            \"rightOperand\": \"contractAgreement+0s\"\n          },\n          {\n            \"leftOperand\": \"https://w3id.org/edc/v0.0.1/ns/inForceDate\",\n            \"operator\": \"lteq\",\n            \"rightOperand\": \"contractAgreement+7d\"\n          }\n        ]\n      }\n    ]\n  }\n}"
             }
-          }
+          },
+          "description": "Crea la policy `policy-contrato-7-dias` de tipo **contract policy** con restriccion temporal.\n\n**Tipo ODRL:** `Set` con dos constraints sobre `https://w3id.org/edc/v0.0.1/ns/inForceDate`:\n- `>= contractAgreement+0s` (valido desde el momento de la firma)\n- `<= contractAgreement+7d` (expira 7 dias despues de la firma)\n\nEsta policy se usa para el `dataset-streaming-iot`. El **Policy Monitor** (scope `policy.monitor`) evaluara periodicamente esta policy y terminara automaticamente cualquier transferencia activa cuando expire.\n\n**Tip:** Para probar la expiracion rapida, usar el request 4.0 que crea una version de 60 segundos.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD de la policy creada."
         },
         {
           "name": "0.9 Crear ContractDefinition - Publico",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractdefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"ContractDefinition\",\n  \"@id\": \"contrato-publico\",\n  \"accessPolicyId\": \"policy-acceso-abierto\",\n  \"contractPolicyId\": \"policy-contrato-estandar\",\n  \"assetsSelector\": [\n    {\n      \"@type\": \"Criterion\",\n      \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n      \"operator\": \"=\",\n      \"operandRight\": \"dataset-publico\"\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Crea el contract definition `contrato-publico` que vincula:\n\n| Componente | Valor |\n|------------|-------|\n| **Asset** | `dataset-publico` (selector por ID) |\n| **Access Policy** | `policy-acceso-abierto` (sin restricciones) |\n| **Contract Policy** | `policy-contrato-estandar` (sin restricciones) |\n\n**Resultado:** `dataset-publico` sera visible para **todos** en el catalogo y se podra negociar un contrato sin restricciones temporales.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD del contract definition creado."
         },
         {
           "name": "0.10 Crear ContractDefinition - Partners Gold",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractdefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"ContractDefinition\",\n  \"@id\": \"contrato-partners\",\n  \"accessPolicyId\": \"policy-acceso-partners-gold\",\n  \"contractPolicyId\": \"policy-contrato-estandar\",\n  \"assetsSelector\": [\n    {\n      \"@type\": \"Criterion\",\n      \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n      \"operator\": \"=\",\n      \"operandRight\": \"dataset-partners\"\n    }\n  ]\n}"
+              "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"ContractDefinition\",\n  \"@id\": \"contrato-partners\",\n  \"accessPolicyId\": \"policy-acceso-denegado\",\n  \"contractPolicyId\": \"policy-contrato-estandar\",\n  \"assetsSelector\": [\n    {\n      \"@type\": \"Criterion\",\n      \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n      \"operator\": \"=\",\n      \"operandRight\": \"dataset-partners\"\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Crea el contract definition `contrato-partners` que vincula:\n\n| Componente | Valor |\n|------------|-------|\n| **Asset** | `dataset-partners` (selector por ID) |\n| **Access Policy** | `policy-acceso-denegado` (prohibicion - oculta el asset) |\n| **Contract Policy** | `policy-contrato-estandar` (sin restricciones) |\n\n**Resultado:** `dataset-partners` **no aparecera** en el catalogo porque la access policy contiene una prohibicion. Esto demuestra el filtrado de acceso en el scope `catalog.request`.\n\n**Nota:** Para usar la policy `policy-acceso-partners-gold` (constraint custom), se necesita una extension que registre una funcion para `partnerLevel`.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD del contract definition creado."
         },
         {
           "name": "0.11 Crear ContractDefinition - Streaming IoT (7 dias)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractdefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"ContractDefinition\",\n  \"@id\": \"contrato-streaming-temporal\",\n  \"accessPolicyId\": \"policy-acceso-abierto\",\n  \"contractPolicyId\": \"policy-contrato-7-dias\",\n  \"assetsSelector\": [\n    {\n      \"@type\": \"Criterion\",\n      \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n      \"operator\": \"=\",\n      \"operandRight\": \"dataset-streaming-iot\"\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Crea el contract definition `contrato-streaming-temporal` que vincula:\n\n| Componente | Valor |\n|------------|-------|\n| **Asset** | `dataset-streaming-iot` (selector por ID) |\n| **Access Policy** | `policy-acceso-abierto` (sin restricciones) |\n| **Contract Policy** | `policy-contrato-7-dias` (expira en 7 dias) |\n\n**Resultado:** Visible para todos en el catalogo, pero el contrato expira a los 7 dias. Esto permite demostrar el **Policy Monitor** (Caso 4) que terminara la transferencia automaticamente al expirar.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD del contract definition creado."
         }
       ]
     },
     {
       "name": "1. Caso 1 - catalog.request",
-      "description": "Evaluacion de access policies al solicitar el catalogo.\n\nEl proveedor filtra los assets visibles segun la access policy de cada ContractDefinition.\n- dataset-publico: visible para todos\n- dataset-partners: solo visible para partners gold\n- dataset-streaming-iot: visible para todos",
+      "description": "# Caso 1: Scope `catalog.request`\n\nDemuestra como el proveedor **filtra los assets visibles** al evaluar la access policy de cada ContractDefinition.\n\n## Que ocurre internamente\n\n1. El consumidor envia un `CatalogRequest` al proveedor via DSP\n2. El proveedor recorre todos sus ContractDefinitions\n3. Para cada uno, evalua la **access policy** en el scope `catalog.request`\n4. Solo incluye en la respuesta los assets cuya access policy se satisface\n\n## Resultado esperado con nuestro setup\n\n| Asset | Access Policy | Visible? |\n|-------|--------------|----------|\n| `dataset-publico` | acceso abierto | Si |\n| `dataset-partners` | acceso denegado (prohibicion) | No |\n| `dataset-streaming-iot` | acceso abierto | Si |\n\nEl catalogo deberia devolver 2 datasets (publico + streaming). El dataset de partners no aparecera porque su access policy contiene una prohibicion explicita.",
       "item": [
         {
           "name": "1.1 Solicitar Catalogo Completo",
@@ -243,10 +396,10 @@
                   "",
                   "// Intentar extraer el primer offerId del catalogo",
                   "try {",
-                  "    var datasets = jsonData['dcat:dataset'];",
+                  "    var datasets = jsonData['dataset'];",
                   "    if (datasets && datasets.length > 0) {",
                   "        var firstDataset = datasets[0];",
-                  "        var policies = firstDataset['odrl:hasPolicy'];",
+                  "        var policies = firstDataset['hasPolicy'];",
                   "        if (policies) {",
                   "            var policy = Array.isArray(policies) ? policies[0] : policies;",
                   "            var offerId = policy['@id'];",
@@ -266,49 +419,149 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/request" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/request",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "catalog",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"CatalogRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"counterPartyId\": \"{{PROVIDER_ID}}\",\n  \"protocol\": \"{{PROTOCOL}}\"\n}"
             }
-          }
+          },
+          "description": "Solicita el catalogo **completo** del proveedor desde el consumidor.\n\n**Endpoint:** `POST /catalog/request` (Consumer Management API)\n**Destino DSP:** `{{PROVIDER_DSP_URL}}`\n\nEl proveedor evalua la access policy de cada ContractDefinition en el scope `catalog.request` y devuelve solo los assets cuya policy se satisface.\n\n**Respuesta esperada:** Un objeto DCAT Catalog con los datasets visibles. Cada dataset incluye sus offers (`hasPolicy`) con el `offerId` necesario para negociar.\n\n**Script de test:** Extrae automaticamente el `offer_id` del primer dataset y lo guarda en las variables de coleccion para usarlo en el Caso 2."
         },
         {
           "name": "1.2 Solicitar Catalogo - Filtrar por Asset ID",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/request" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/request",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "catalog",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"CatalogRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"counterPartyId\": \"{{PROVIDER_ID}}\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"querySpec\": {\n    \"@type\": \"QuerySpec\",\n    \"filterExpression\": [\n      {\n        \"@type\": \"Criterion\",\n        \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n        \"operator\": \"=\",\n        \"operandRight\": \"dataset-publico\"\n      }\n    ]\n  }\n}"
             }
-          }
+          },
+          "description": "Solicita el catalogo filtrando por un asset especifico (`dataset-publico`).\n\n**Endpoint:** `POST /catalog/request` (Consumer Management API)\n\nUsa `querySpec.filterExpression` con un `Criterion` que filtra por el ID del asset. El filtrado se aplica **despues** de la evaluacion de la access policy.\n\n**Respuesta esperada:** Un DCAT Catalog con un unico dataset (`dataset-publico`) y su oferta.\n\n**Nota:** Si se filtra por `dataset-partners` (que requiere partnerLevel=gold), el catalogo volvera **vacio** porque la access policy no se satisface."
         },
         {
           "name": "1.3 Solicitar Dataset Especifico",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/dataset/request" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/dataset/request",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "catalog",
+                "dataset",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"DatasetRequest\",\n  \"@id\": \"dataset-publico\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"counterPartyId\": \"{{PROVIDER_ID}}\",\n  \"protocol\": \"{{PROTOCOL}}\"\n}"
             }
-          }
+          },
+          "description": "Solicita los metadatos de un dataset especifico por ID, usando `DatasetRequest` en lugar de `CatalogRequest`.\n\n**Endpoint:** `POST /catalog/dataset/request` (Consumer Management API)\n\nA diferencia de `CatalogRequest` (que devuelve un catalogo completo), este endpoint devuelve directamente el objeto DCAT Dataset con sus ofertas.\n\n**Respuesta esperada:** El dataset `dataset-publico` con sus policies/offers. Util cuando ya conoces el ID del asset y solo necesitas la oferta para negociar."
         }
       ]
     },
     {
       "name": "2. Caso 2 - contract.negotiation",
-      "description": "Evaluacion de contract policies durante la negociacion.\n\nEl consumidor toma la oferta del catalogo e inicia una negociacion. El proveedor re-evalua access policy + contract policy.\n\nIMPORTANTE: Copiar el offerId de la respuesta del catalogo (paso 1.1) a la variable offer_id, o rellenar manualmente el campo policy.@id en el paso 2.1.",
+      "description": "# Caso 2: Scope `contract.negotiation`\n\nDemuestra como el proveedor **re-evalua las policies** al recibir una solicitud de contrato.\n\n## Que ocurre internamente\n\n1. El consumidor envia un `ContractRequest` con la oferta del catalogo\n2. El proveedor **re-evalua la access policy** (no basta con haberla pasado en el catalogo)\n3. El proveedor **evalua la contract policy** en el scope `contract.negotiation`\n4. Si ambas policies se satisfacen, la negociacion progresa a `AGREED` y luego `FINALIZED`\n5. Se genera un `ContractAgreement` con un ID unico\n\n## Flujo de estados\n\n```\nREQUESTED -> ACCEPTED -> AGREED -> VERIFIED -> FINALIZED\n```\n\n## Pasos\n\nEsta carpeta es **autocontenida**: el paso 2.0 obtiene el `offer_id` del catalogo automaticamente. Solo necesitas haber ejecutado el Setup Proveedor (carpeta 0).",
       "item": [
+        {
+          "name": "2.0 Solicitar Catalogo (obtener offer_id)",
+          "description": "Solicita el catalogo filtrando por `dataset-publico` y extrae automaticamente el `offer_id`.\n\n**Endpoint:** `POST /catalog/request` (Consumer Management API)\n\n**Script de test:** Busca el dataset `dataset-publico` en la respuesta y guarda el `offer_id` en las variables de coleccion para usarlo en el siguiente paso.\n\n**Prerequisito:** Haber ejecutado el Setup Proveedor (carpeta 0).",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "try {",
+                  "    var datasets = jsonData['dataset'];",
+                  "    if (datasets) {",
+                  "        var list = Array.isArray(datasets) ? datasets : [datasets];",
+                  "        for (var i = 0; i < list.length; i++) {",
+                  "            if (list[i]['@id'] === 'dataset-publico') {",
+                  "                var policies = list[i]['hasPolicy'];",
+                  "                var policy = Array.isArray(policies) ? policies[0] : policies;",
+                  "                if (policy && policy['@id']) {",
+                  "                    pm.collectionVariables.set('offer_id', policy['@id']);",
+                  "                    console.log('offer_id guardado: ' + policy['@id']);",
+                  "                }",
+                  "            }",
+                  "        }",
+                  "    }",
+                  "} catch(e) {",
+                  "    console.log('No se pudo extraer offer_id: ' + e.message);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/request",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "catalog",
+                "request"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"@context\": {\n    \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\"\n  },\n  \"@type\": \"CatalogRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"counterPartyId\": \"{{PROVIDER_ID}}\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"querySpec\": {\n    \"@type\": \"QuerySpec\",\n    \"filterExpression\": [\n      {\n        \"@type\": \"Criterion\",\n        \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n        \"operator\": \"=\",\n        \"operandRight\": \"dataset-publico\"\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
         {
           "name": "2.1 Iniciar Negociacion de Contrato",
           "event": [
@@ -329,30 +582,66 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"ContractRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"odrl:Offer\",\n    \"@id\": \"{{offer_id}}\",\n    \"assigner\": \"{{PROVIDER_ID}}\",\n    \"target\": \"dataset-publico\",\n    \"permission\": [\n      {\n        \"action\": \"use\"\n      }\n    ]\n  },\n  \"callbackAddresses\": [\n    {\n      \"transactional\": false,\n      \"uri\": \"{{CONSUMER_CALLBACK_URL}}\",\n      \"events\": [\"contract.negotiation\"]\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Inicia una negociacion de contrato para el `dataset-publico`.\n\n**Endpoint:** `POST /contractnegotiations` (Consumer Management API)\n\nEnvia la oferta obtenida del catalogo (con el `offer_id`) al proveedor. La policy de la oferta debe coincidir **exactamente** con la que devolvio el catalogo.\n\n**Campos clave del body:**\n- `policy.@id`: El `offer_id` del catalogo (variable `{{offer_id}}`)\n- `policy.assigner`: ID del proveedor\n- `policy.target`: ID del asset (`dataset-publico`)\n- `callbackAddresses`: URL donde el consumidor recibira notificaciones de estado\n\n**Script de test:** Guarda el `negotiation_id` de la respuesta en las variables de coleccion.\n\n**Respuesta esperada:** `200 OK` con el ID de la negociacion creada."
         },
         {
           "name": "2.2 Consultar Estado de Negociacion",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/state" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/state",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "{{negotiation_id}}",
+                "state"
+              ]
+            }
+          },
+          "description": "Consulta el estado actual de la negociacion.\n\n**Endpoint:** `GET /contractnegotiations/{{negotiation_id}}/state`\n\n**Estados posibles:**\n- `REQUESTED` — Enviada al proveedor, esperando respuesta\n- `ACCEPTED` — Proveedor acepto, procesando\n- `AGREED` — Proveedor genero el agreement\n- `VERIFIED` — Consumidor verifico el agreement\n- `FINALIZED` — Negociacion completada con exito\n- `TERMINATED` — Rechazada o cancelada\n\n**Tip:** Ejecutar este request varias veces hasta que el estado sea `FINALIZED` (suele tardar 1-3 segundos)."
         },
         {
           "name": "2.3 Ver Detalles de Negociacion",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "{{negotiation_id}}"
+              ]
+            }
+          },
+          "description": "Obtiene los detalles completos de la negociacion.\n\n**Endpoint:** `GET /contractnegotiations/{{negotiation_id}}`\n\nDevuelve el objeto completo con: estado actual, counterPartyId, counterPartyAddress, protocolo, tipo, timestamps, y el contractAgreementId (si ya se firmo).\n\n**Respuesta esperada:** JSON-LD con todos los metadatos de la negociacion."
         },
         {
           "name": "2.4 Obtener Agreement de la Negociacion",
@@ -374,43 +663,238 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/agreement" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/agreement",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "{{negotiation_id}}",
+                "agreement"
+              ]
+            }
+          },
+          "description": "Obtiene el Contract Agreement generado por una negociacion finalizada.\n\n**Endpoint:** `GET /contractnegotiations/{{negotiation_id}}/agreement`\n\n**Prerequisito:** La negociacion debe estar en estado `FINALIZED`.\n\nEl agreement contiene:\n- `@id`: ID unico del agreement (necesario para iniciar transferencias)\n- `assetId`: El asset negociado\n- `policy`: La policy acordada entre ambas partes\n- `contractSigningDate`: Timestamp de firma (referencia para constraints temporales)\n\n**Script de test:** Guarda el `agreement_id` automaticamente para usarlo en el Caso 3.\n\n**Respuesta esperada:** `200 OK` con el JSON-LD del Contract Agreement."
         },
         {
           "name": "2.5 Listar Todas las Negociaciones",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/request" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/request",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"QuerySpec\",\n  \"offset\": 0,\n  \"limit\": 10,\n  \"sortOrder\": \"DESC\",\n  \"sortField\": \"createdAt\"\n}"
             }
-          }
+          },
+          "description": "Lista todas las negociaciones de contrato del consumidor con paginacion.\n\n**Endpoint:** `POST /contractnegotiations/request` (Consumer Management API)\n\nUsa `QuerySpec` para paginar y ordenar resultados. Util para ver el historial de negociaciones y sus estados.\n\n**Parametros del QuerySpec:**\n- `offset`: 0 (desde el inicio)\n- `limit`: 10 (maximo 10 resultados)\n- `sortOrder`: DESC (mas recientes primero)\n- `sortField`: createdAt\n\n**Respuesta esperada:** Array de negociaciones con su estado actual."
         },
         {
-          "name": "2.6 Terminar Negociacion (opcional)",
+          "name": "2.6 Terminar Negociacion (solo si NO esta FINALIZED)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/terminate" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/terminate",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "{{negotiation_id}}",
+                "terminate"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"TerminateNegotiation\",\n  \"@id\": \"{{negotiation_id}}\",\n  \"reason\": \"Las condiciones no son aceptables\"\n}"
             }
-          }
+          },
+          "description": "Termina (cancela) una negociacion en curso.\n\n**Endpoint:** `POST /contractnegotiations/{{negotiation_id}}/terminate`\n\nPermite cancelar una negociacion que aun no ha sido finalizada. Incluye un campo `reason` con el motivo de la terminacion.\n\n**Nota:** Solo funciona si la negociacion **no** esta en estado `FINALIZED`. Una vez finalizada, el agreement ya esta firmado y no se puede deshacer.\n\n**Respuesta esperada:** `204 No Content` si la terminacion fue exitosa."
         }
       ]
     },
     {
       "name": "3. Caso 3 - transfer.process",
-      "description": "Re-evaluacion de la policy del agreement al iniciar transferencia.\n\nEl proveedor verifica que la policy sigue siendo valida en el momento actual.\n\nPrerrequisito: tener un agreement_id del caso 2.",
+      "description": "# Caso 3: Scope `transfer.process`\n\nDemuestra la **re-evaluacion de la policy del agreement** al momento de iniciar una transferencia de datos.\n\n## Que ocurre internamente\n\n1. El consumidor envia un `TransferRequest` referenciando un `contractId` (agreement)\n2. El proveedor recupera la policy del agreement\n3. Re-evalua la policy en el scope `transfer.process`\n4. Si la policy sigue siendo valida, la transferencia se inicia\n5. Si la policy ya no es valida (ej: expirada), la transferencia se rechaza\n\n## Modalidades de transferencia\n\n| Tipo | Descripcion |\n|------|-------------|\n| **PUSH** | El proveedor envia datos al endpoint del consumidor |\n| **PULL** | El consumidor obtiene un EndpointDataReference para consultar datos |\n\n## Pasos\n\nEsta carpeta es **autocontenida**: los pasos 3.0a-3.0d obtienen catalogo, negocian contrato y extraen el agreement automaticamente. Solo necesitas haber ejecutado el Setup Proveedor (carpeta 0).",
       "item": [
+        {
+          "name": "3.0a Solicitar Catalogo (obtener offer_id)",
+          "description": "Solicita el catalogo filtrando por `dataset-publico` y extrae automaticamente el `offer_id`.\n\n**Endpoint:** `POST /catalog/request` (Consumer Management API)\n\n**Script de test:** Busca el dataset `dataset-publico` en la respuesta y guarda el `offer_id` en las variables de coleccion para usarlo en el siguiente paso.\n\n**Prerequisito:** Haber ejecutado el Setup Proveedor (carpeta 0).",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "try {",
+                  "    var datasets = jsonData['dataset'];",
+                  "    if (datasets) {",
+                  "        var list = Array.isArray(datasets) ? datasets : [datasets];",
+                  "        for (var i = 0; i < list.length; i++) {",
+                  "            if (list[i]['@id'] === 'dataset-publico') {",
+                  "                var policies = list[i]['hasPolicy'];",
+                  "                var policy = Array.isArray(policies) ? policies[0] : policies;",
+                  "                if (policy && policy['@id']) {",
+                  "                    pm.collectionVariables.set('offer_id', policy['@id']);",
+                  "                    console.log('offer_id guardado: ' + policy['@id']);",
+                  "                }",
+                  "            }",
+                  "        }",
+                  "    }",
+                  "} catch(e) {",
+                  "    console.log('No se pudo extraer offer_id: ' + e.message);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/request",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "catalog",
+                "request"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"@context\": {\n    \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\"\n  },\n  \"@type\": \"CatalogRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"counterPartyId\": \"{{PROVIDER_ID}}\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"querySpec\": {\n    \"@type\": \"QuerySpec\",\n    \"filterExpression\": [\n      {\n        \"@type\": \"Criterion\",\n        \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n        \"operator\": \"=\",\n        \"operandRight\": \"dataset-publico\"\n      }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "3.0b Iniciar Negociacion de Contrato",
+          "description": "Inicia una negociacion de contrato para `dataset-publico` usando el `offer_id` obtenido del catalogo.\n\n**Endpoint:** `POST /contractnegotiations` (Consumer Management API)\n\n**Script de test:** Guarda el `negotiation_id` automaticamente.\n\n**Prerequisito:** Haber ejecutado el paso anterior para obtener el `offer_id`.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData['@id']) {",
+                  "    pm.collectionVariables.set('negotiation_id', jsonData['@id']);",
+                  "    console.log('negotiation_id guardado: ' + jsonData['@id']);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"@context\": {\n    \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\"\n  },\n  \"@type\": \"ContractRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"odrl:Offer\",\n    \"@id\": \"{{offer_id}}\",\n    \"assigner\": \"{{PROVIDER_ID}}\",\n    \"target\": \"dataset-publico\",\n    \"permission\": [\n      {\n        \"action\": \"use\"\n      }\n    ]\n  },\n  \"callbackAddresses\": [\n    {\n      \"transactional\": false,\n      \"uri\": \"{{CONSUMER_CALLBACK_URL}}\",\n      \"events\": [\n        \"contract.negotiation\"\n      ]\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "3.0c Esperar Negociacion FINALIZED",
+          "description": "Consulta el estado de la negociacion. Ejecutar varias veces hasta que devuelva `FINALIZED`.\n\n**Endpoint:** `GET /contractnegotiations/{{negotiation_id}}/state`\n\n**Estados posibles:** REQUESTED -> ACCEPTED -> AGREED -> VERIFIED -> FINALIZED\n\n**Tip:** Suele tardar 1-3 segundos en llegar a FINALIZED.",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/state",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "{{negotiation_id}}",
+                "state"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.0d Obtener Agreement",
+          "description": "Obtiene el Contract Agreement de la negociacion finalizada.\n\n**Endpoint:** `GET /contractnegotiations/{{negotiation_id}}/agreement`\n\n**Script de test:** Guarda el `agreement_id` automaticamente para los siguientes pasos.\n\n**Prerequisito:** La negociacion debe estar en estado `FINALIZED`.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData['@id']) {",
+                  "    pm.collectionVariables.set('agreement_id', jsonData['@id']);",
+                  "    console.log('agreement_id guardado: ' + jsonData['@id']);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/agreement",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "{{negotiation_id}}",
+                "agreement"
+              ]
+            }
+          }
+        },
         {
           "name": "3.1 Iniciar Transferencia PUSH",
           "event": [
@@ -431,14 +915,27 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"TransferRequest\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"contractId\": \"{{agreement_id}}\",\n  \"transferType\": \"HttpData-PUSH\",\n  \"dataDestination\": {\n    \"@type\": \"DataAddress\",\n    \"type\": \"HttpData\",\n    \"baseUrl\": \"{{CONSUMER_RECEIVE_URL}}\"\n  },\n  \"callbackAddresses\": [\n    {\n      \"transactional\": false,\n      \"uri\": \"{{CONSUMER_CALLBACK_URL}}\",\n      \"events\": [\"transfer.process.started\", \"transfer.process.completed\", \"transfer.process.terminated\"]\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Inicia una transferencia en modo **PUSH** — el proveedor envia los datos al consumidor.\n\n**Endpoint:** `POST /transferprocesses` (Consumer Management API)\n\n**Campos clave:**\n- `contractId`: El `agreement_id` del contrato firmado\n- `transferType`: `HttpData-PUSH`\n- `dataDestination.baseUrl`: URL donde el consumidor recibe los datos (`{{CONSUMER_RECEIVE_URL}}`)\n\nEl proveedor **re-evalua la policy** del agreement en el scope `transfer.process`. Si la policy sigue valida, inicia el envio de datos al endpoint del consumidor.\n\n**Script de test:** Guarda el `transfer_id` en las variables de coleccion.\n\n**Respuesta esperada:** `200 OK` con el ID del transfer process creado."
         },
         {
           "name": "3.2 Iniciar Transferencia PULL (alternativa)",
@@ -460,120 +957,241 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"TransferRequest\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"contractId\": \"{{agreement_id}}\",\n  \"transferType\": \"HttpData-PULL\",\n  \"callbackAddresses\": [\n    {\n      \"transactional\": false,\n      \"uri\": \"{{CONSUMER_CALLBACK_URL}}\",\n      \"events\": [\"transfer.process.started\", \"transfer.process.completed\", \"transfer.process.terminated\"]\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Inicia una transferencia en modo **PULL** — el consumidor solicita los datos cuando los necesite.\n\n**Endpoint:** `POST /transferprocesses` (Consumer Management API)\n\n**Diferencia con PUSH:** No se especifica `dataDestination`. En su lugar, el consumidor recibira un `EndpointDataReference` (EDR) con la URL y token para consultar los datos.\n\n**Campos clave:**\n- `contractId`: El `agreement_id` del contrato firmado\n- `transferType`: `HttpData-PULL`\n\n**Script de test:** Guarda el `transfer_id` en las variables de coleccion.\n\n**Respuesta esperada:** `200 OK` con el ID del transfer process creado.\n\n**Nota:** Usar 3.1 (PUSH) **o** 3.2 (PULL), no ambos con el mismo agreement."
         },
         {
           "name": "3.3 Consultar Estado de Transferencia",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/state" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/state",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "{{transfer_id}}",
+                "state"
+              ]
+            }
+          },
+          "description": "Consulta el estado actual de la transferencia.\n\n**Endpoint:** `GET /transferprocesses/{{transfer_id}}/state`\n\n**Estados posibles:**\n- `REQUESTED` — Solicitud enviada al proveedor\n- `STARTED` — Transferencia en curso\n- `SUSPENDED` — Transferencia pausada\n- `COMPLETED` — Transferencia completada con exito\n- `TERMINATED` — Transferencia terminada (por error, policy, o manual)\n\n**Tip:** Ejecutar varias veces hasta que el estado cambie de `REQUESTED` a `STARTED`."
         },
         {
           "name": "3.4 Ver Detalles de Transferencia",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "{{transfer_id}}"
+              ]
+            }
+          },
+          "description": "Obtiene los detalles completos del transfer process.\n\n**Endpoint:** `GET /transferprocesses/{{transfer_id}}`\n\nDevuelve el objeto completo con: estado, tipo de transferencia, contractId, dataDestination, timestamps, y `errorDetail` si hubo un error.\n\n**Campo importante:** `errorDetail` — si la transferencia fue terminada por el Policy Monitor o por una policy expirada, aqui aparecera el motivo."
         },
         {
           "name": "3.5 Listar Todas las Transferencias",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/request" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/request",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"QuerySpec\",\n  \"offset\": 0,\n  \"limit\": 10,\n  \"sortOrder\": \"DESC\",\n  \"sortField\": \"createdAt\"\n}"
             }
-          }
+          },
+          "description": "Lista todas las transferencias del consumidor con paginacion.\n\n**Endpoint:** `POST /transferprocesses/request` (Consumer Management API)\n\nUsa `QuerySpec` para paginar y ordenar. Util para ver el historial de transferencias y detectar cuales fueron terminadas por el Policy Monitor.\n\n**Respuesta esperada:** Array de transfer processes con su estado actual."
         },
         {
           "name": "3.6 Suspender Transferencia",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/suspend" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/suspend",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "{{transfer_id}}",
+                "suspend"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"SuspendTransfer\",\n  \"reason\": \"Mantenimiento programado del sistema receptor\"\n}"
             }
-          }
+          },
+          "description": "Suspende (pausa) una transferencia activa.\n\n**Endpoint:** `POST /transferprocesses/{{transfer_id}}/suspend`\n\nPausa temporalmente la transferencia. El campo `reason` indica el motivo. La transferencia puede reanudarse posteriormente con el request 3.7.\n\n**Prerequisito:** La transferencia debe estar en estado `STARTED`.\n\n**Respuesta esperada:** `204 No Content` si se suspendio correctamente."
         },
         {
           "name": "3.7 Reanudar Transferencia",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/resume" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/resume",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "{{transfer_id}}",
+                "resume"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" }\n}"
             }
-          }
+          },
+          "description": "Reanuda una transferencia previamente suspendida.\n\n**Endpoint:** `POST /transferprocesses/{{transfer_id}}/resume`\n\n**Prerequisito:** La transferencia debe estar en estado `SUSPENDED`.\n\nAl reanudar, el proveedor **re-evalua la policy** del agreement. Si la policy ya expiro durante la suspension, la reanudacion podria fallar.\n\n**Respuesta esperada:** `204 No Content` si se reanudo correctamente."
         },
         {
           "name": "3.8 Terminar Transferencia",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/terminate" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/terminate",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "{{transfer_id}}",
+                "terminate"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"TerminateTransfer\",\n  \"reason\": \"Ya no necesitamos estos datos\"\n}"
             }
-          }
+          },
+          "description": "Termina (cancela) una transferencia manualmente.\n\n**Endpoint:** `POST /transferprocesses/{{transfer_id}}/terminate`\n\nPermite al consumidor terminar una transferencia activa o suspendida. El campo `reason` indica el motivo.\n\n**Diferencia con Policy Monitor:** Aqui la terminacion es manual. En el Caso 4, el Policy Monitor termina la transferencia automaticamente al expirar la policy.\n\n**Respuesta esperada:** `204 No Content` si se termino correctamente."
         }
       ]
     },
     {
       "name": "4. Caso 4 - policy.monitor",
-      "description": "Vigilancia continua de politicas en transferencias activas.\n\nEl Policy Monitor es automatico (no tiene endpoints propios). Para demostrarlo:\n1. Negociar un contrato con policy temporal (dataset-streaming-iot, 7 dias)\n2. Iniciar transferencia\n3. Monitorear el estado — el Policy Monitor terminara la transferencia cuando expire\n\nPara probar la expiracion rapida, usar una policy con duracion corta (ej: contractAgreement+60s).",
+      "description": "# Caso 4: Scope `policy.monitor`\n\nDemuestra la **vigilancia continua** de policies en transferencias activas mediante el Policy Monitor.\n\n## Que es el Policy Monitor\n\nEs un proceso automatico del proveedor que periodicamente re-evalua las policies de todos los agreements con transferencias activas. Si una policy deja de satisfacerse (ej: expira un constraint temporal), el Policy Monitor **termina automaticamente** la transferencia.\n\n## Flujo de la demo\n\n1. (Opcional) Crear una policy de 60 segundos para ver la expiracion rapido\n2. Solicitar catalogo -> obtener oferta de `dataset-streaming-iot`\n3. Negociar contrato -> obtener agreement\n4. Iniciar transferencia -> estado `STARTED`\n5. Esperar a que expire la policy\n6. Verificar que el estado cambio a `TERMINATED` automaticamente\n\n## Configuracion del Policy Monitor\n\nEl intervalo de evaluacion se configura con la property `edc.policy.monitor.interval` (por defecto 60 segundos). Para pruebas rapidas, se puede reducir a 10s.\n\n## Pasos\n\nEsta carpeta es **autocontenida**: incluye todos los pasos desde solicitar catalogo hasta verificar la terminacion. Solo necesitas haber ejecutado el Setup Proveedor (carpeta 0).",
       "item": [
         {
           "name": "4.0 (Opcional) Crear Policy Expiracion Rapida (60s)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "policydefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"PolicyDefinition\",\n  \"@id\": \"policy-contrato-60-segundos\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"Set\",\n    \"permission\": [\n      {\n        \"action\": \"use\",\n        \"constraint\": [\n          {\n            \"leftOperand\": \"edc:inForceDate\",\n            \"operator\": \"gteq\",\n            \"rightOperand\": \"contractAgreement+0s\"\n          },\n          {\n            \"leftOperand\": \"edc:inForceDate\",\n            \"operator\": \"lteq\",\n            \"rightOperand\": \"contractAgreement+60s\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+              "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"PolicyDefinition\",\n  \"@id\": \"policy-contrato-60-segundos\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"Set\",\n    \"permission\": [\n      {\n        \"action\": \"use\",\n        \"constraint\": [\n          {\n            \"leftOperand\": \"https://w3id.org/edc/v0.0.1/ns/inForceDate\",\n            \"operator\": \"gteq\",\n            \"rightOperand\": \"contractAgreement+0s\"\n          },\n          {\n            \"leftOperand\": \"https://w3id.org/edc/v0.0.1/ns/inForceDate\",\n            \"operator\": \"lteq\",\n            \"rightOperand\": \"contractAgreement+60s\"\n          }\n        ]\n      }\n    ]\n  }\n}"
             }
-          }
+          },
+          "description": "Crea una policy temporal de **60 segundos** para probar la expiracion rapida.\n\n**Endpoint:** `POST /policydefinitions` (Provider Management API)\n\n**Policy:** `policy-contrato-60-segundos` con constraints `inForceDate`:\n- Valida desde: `contractAgreement+0s` (momento de la firma)\n- Expira en: `contractAgreement+60s` (60 segundos despues)\n\n**Por que es util:** La policy de 7 dias es demasiado larga para una demo. Con 60 segundos podemos ver al Policy Monitor terminar la transferencia en ~1-2 minutos.\n\n**Siguiente paso:** Ejecutar 4.0b para actualizar el contract definition."
         },
         {
           "name": "4.0b (Opcional) Actualizar ContractDef con policy 60s",
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractdefinitions"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"ContractDefinition\",\n  \"@id\": \"contrato-streaming-temporal\",\n  \"accessPolicyId\": \"policy-acceso-abierto\",\n  \"contractPolicyId\": \"policy-contrato-60-segundos\",\n  \"assetsSelector\": [\n    {\n      \"@type\": \"Criterion\",\n      \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n      \"operator\": \"=\",\n      \"operandRight\": \"dataset-streaming-iot\"\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Actualiza el contract definition `contrato-streaming-temporal` para usar la policy de 60 segundos.\n\n**Endpoint:** `PUT /contractdefinitions` (Provider Management API)\n\nReemplaza la `contractPolicyId` de `policy-contrato-7-dias` por `policy-contrato-60-segundos`. Asi, las nuevas negociaciones para `dataset-streaming-iot` usaran la policy corta.\n\n**Nota:** Los agreements ya firmados **no** se ven afectados. Solo las nuevas negociaciones usaran la policy actualizada.\n\n**Respuesta esperada:** `204 No Content` si se actualizo correctamente."
         },
         {
           "name": "4.1 Solicitar Catalogo (ver dataset-streaming-iot)",
@@ -585,16 +1203,38 @@
                 "exec": [
                   "var jsonData = pm.response.json();",
                   "try {",
-                  "    var datasets = jsonData['dcat:dataset'];",
+                  "    var datasets = jsonData['dataset'];",
                   "    if (datasets) {",
                   "        var list = Array.isArray(datasets) ? datasets : [datasets];",
                   "        for (var i = 0; i < list.length; i++) {",
                   "            if (list[i]['@id'] === 'dataset-streaming-iot') {",
-                  "                var policies = list[i]['odrl:hasPolicy'];",
+                  "                var policies = list[i]['hasPolicy'];",
                   "                var policy = Array.isArray(policies) ? policies[0] : policies;",
                   "                if (policy && policy['@id']) {",
                   "                    pm.collectionVariables.set('offer_id', policy['@id']);",
                   "                    console.log('offer_id (streaming) guardado: ' + policy['@id']);",
+                  "                }",
+                  "                // Extraer constraints temporales de la policy",
+                  "                if (policy && policy['permission']) {",
+                  "                    var perms = Array.isArray(policy['permission']) ? policy['permission'] : [policy['permission']];",
+                  "                    for (var p = 0; p < perms.length; p++) {",
+                  "                        var constraints = perms[p]['constraint'];",
+                  "                        if (constraints) {",
+                  "                            var cList = Array.isArray(constraints) ? constraints : [constraints];",
+                  "                            for (var c = 0; c < cList.length; c++) {",
+                  "                                var op = cList[c]['operator'] || cList[c]['odrl:operator'] || '';",
+                  "                                var right = cList[c]['rightOperand'] || cList[c]['odrl:rightOperand'] || '';",
+                  "                                if (op === 'gteq' || op === 'odrl:gteq') {",
+                  "                                    pm.collectionVariables.set('constraint_start', right);",
+                  "                                    console.log('constraint_start guardado: ' + right);",
+                  "                                }",
+                  "                                if (op === 'lteq' || op === 'odrl:lteq') {",
+                  "                                    pm.collectionVariables.set('constraint_end', right);",
+                  "                                    console.log('constraint_end guardado: ' + right);",
+                  "                                }",
+                  "                            }",
+                  "                        }",
+                  "                    }",
                   "                }",
                   "            }",
                   "        }",
@@ -609,14 +1249,28 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/request" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/catalog/request",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "catalog",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"CatalogRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"counterPartyId\": \"{{PROVIDER_ID}}\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"querySpec\": {\n    \"@type\": \"QuerySpec\",\n    \"filterExpression\": [\n      {\n        \"@type\": \"Criterion\",\n        \"operandLeft\": \"https://w3id.org/edc/v0.0.1/ns/id\",\n        \"operator\": \"=\",\n        \"operandRight\": \"dataset-streaming-iot\"\n      }\n    ]\n  }\n}"
             }
-          }
+          },
+          "description": "Solicita el catalogo filtrando por `dataset-streaming-iot`.\n\n**Endpoint:** `POST /catalog/request` (Consumer Management API)\n\nBusca la oferta del dataset de streaming IoT para iniciar la negociacion. El filtro `querySpec` reduce la respuesta al dataset que nos interesa.\n\n**Script de test:** Busca el dataset con ID `dataset-streaming-iot` y extrae su `offer_id` automaticamente para usarlo en el paso 4.2.\n\n**Respuesta esperada:** DCAT Catalog con el dataset `dataset-streaming-iot` y su oferta con la policy temporal."
         },
         {
           "name": "4.2 Negociar Contrato Streaming",
@@ -638,22 +1292,47 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations"
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"ContractRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"odrl:Offer\",\n    \"@id\": \"{{offer_id}}\",\n    \"assigner\": \"{{PROVIDER_ID}}\",\n    \"target\": \"dataset-streaming-iot\",\n    \"permission\": [\n      {\n        \"action\": \"use\",\n        \"constraint\": [\n          {\n            \"leftOperand\": \"edc:inForceDate\",\n            \"operator\": \"gteq\",\n            \"rightOperand\": \"contractAgreement+0s\"\n          },\n          {\n            \"leftOperand\": \"edc:inForceDate\",\n            \"operator\": \"lteq\",\n            \"rightOperand\": \"contractAgreement+7d\"\n          }\n        ]\n      }\n    ]\n  },\n  \"callbackAddresses\": [\n    {\n      \"transactional\": false,\n      \"uri\": \"{{CONSUMER_CALLBACK_URL}}\",\n      \"events\": [\"contract.negotiation\"]\n    }\n  ]\n}"
+              "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"ContractRequest\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"policy\": {\n    \"@context\": \"http://www.w3.org/ns/odrl.jsonld\",\n    \"@type\": \"odrl:Offer\",\n    \"@id\": \"{{offer_id}}\",\n    \"assigner\": \"{{PROVIDER_ID}}\",\n    \"target\": \"dataset-streaming-iot\",\n    \"permission\": [\n      {\n        \"action\": \"use\",\n        \"constraint\": [\n          {\n            \"leftOperand\": \"https://w3id.org/edc/v0.0.1/ns/inForceDate\",\n            \"operator\": \"gteq\",\n            \"rightOperand\": \"{{constraint_start}}\"\n          },\n          {\n            \"leftOperand\": \"https://w3id.org/edc/v0.0.1/ns/inForceDate\",\n            \"operator\": \"lteq\",\n            \"rightOperand\": \"{{constraint_end}}\"\n          }\n        ]\n      }\n    ]\n  },\n  \"callbackAddresses\": [\n    {\n      \"transactional\": false,\n      \"uri\": \"{{CONSUMER_CALLBACK_URL}}\",\n      \"events\": [\"contract.negotiation\"]\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Inicia la negociacion de contrato para `dataset-streaming-iot` con la policy temporal.\n\n**Endpoint:** `POST /contractnegotiations` (Consumer Management API)\n\nLa policy de la oferta incluye los constraints `inForceDate` que definen la ventana temporal del contrato. Al firmarse, el `contractSigningDate` marca el inicio del periodo de validez.\n\n**Script de test:** Guarda el `negotiation_id` automaticamente.\n\n**Siguiente paso:** Esperar a que la negociacion llegue a `FINALIZED` (paso 4.3)."
         },
         {
           "name": "4.3 Esperar Negociacion FINALIZED",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/state" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/state",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "{{negotiation_id}}",
+                "state"
+              ]
+            }
+          },
+          "description": "Consulta el estado de la negociacion del contrato streaming.\n\n**Endpoint:** `GET /contractnegotiations/{{negotiation_id}}/state`\n\nEjecutar varias veces hasta que el estado sea `FINALIZED`. Normalmente tarda 1-3 segundos.\n\n**Importante:** Una vez `FINALIZED`, el reloj del constraint temporal empieza a contar desde el `contractSigningDate` del agreement."
         },
         {
           "name": "4.4 Obtener Agreement",
@@ -675,8 +1354,20 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/agreement" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/contractnegotiations/{{negotiation_id}}/agreement",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractnegotiations",
+                "{{negotiation_id}}",
+                "agreement"
+              ]
+            }
+          },
+          "description": "Obtiene el Contract Agreement del contrato streaming.\n\n**Endpoint:** `GET /contractnegotiations/{{negotiation_id}}/agreement`\n\n**Script de test:** Guarda el `agreement_id` para iniciar la transferencia en el paso 4.5.\n\n**Dato clave:** El `contractSigningDate` en el agreement es la referencia temporal. Los constraints `contractAgreement+0s` y `contractAgreement+7d` (o `+60s`) se calculan a partir de esta fecha."
         },
         {
           "name": "4.5 Iniciar Transferencia Streaming (PULL)",
@@ -698,138 +1389,289 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses" },
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"TransferRequest\",\n  \"protocol\": \"{{PROTOCOL}}\",\n  \"counterPartyAddress\": \"{{PROVIDER_DSP_URL}}\",\n  \"contractId\": \"{{agreement_id}}\",\n  \"transferType\": \"HttpData-PULL\",\n  \"callbackAddresses\": [\n    {\n      \"transactional\": false,\n      \"uri\": \"{{CONSUMER_CALLBACK_URL}}\",\n      \"events\": [\"transfer.process.started\", \"transfer.process.terminated\"]\n    }\n  ]\n}"
             }
-          }
+          },
+          "description": "Inicia una transferencia PULL para el dataset de streaming IoT.\n\n**Endpoint:** `POST /transferprocesses` (Consumer Management API)\n\nLa transferencia se inicia en modo PULL. El proveedor re-evalua la policy del agreement en el scope `transfer.process` y, si es valida, arranca la transferencia.\n\n**Script de test:** Guarda el `transfer_id` automaticamente.\n\n**Ahora comienza la cuenta atras:** Desde este momento, el Policy Monitor evalua periodicamente la policy. Cuando expire (60s o 7d segun la policy), terminara la transferencia.\n\n**Siguiente paso:** Verificar el estado con 4.6 (deberia ser `STARTED`)."
         },
         {
           "name": "4.6 Verificar Estado (deberia ser STARTED)",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/state" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/state",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "{{transfer_id}}",
+                "state"
+              ]
+            }
+          },
+          "description": "Verifica que la transferencia esta en estado `STARTED`.\n\n**Endpoint:** `GET /transferprocesses/{{transfer_id}}/state`\n\nInmediatamente despues de iniciar, el estado deberia ser `STARTED`, lo que indica que la policy es valida y la transferencia esta activa.\n\n**Siguiente paso:** Esperar a que expire la policy y luego ejecutar 4.7."
         },
         {
           "name": "4.7 Verificar Estado (tras expiracion → TERMINATED)",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/state" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}/state",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "{{transfer_id}}",
+                "state"
+              ]
+            }
+          },
+          "description": "Verifica que el Policy Monitor ha terminado la transferencia tras expirar la policy.\n\n**Endpoint:** `GET /transferprocesses/{{transfer_id}}/state`\n\n**Cuando ejecutar:**\n- Si usaste la policy de 60s: esperar ~1-2 minutos desde el paso 4.4\n- Si usaste la policy de 7 dias: esperar 7 dias (no practico para demo)\n\n**Estado esperado:** `TERMINATED` — El Policy Monitor detecto que la policy expiro y termino automaticamente la transferencia.\n\n**Si sigue en STARTED:** El Policy Monitor aun no ha ejecutado su ciclo. El intervalo por defecto es 60 segundos (`edc.policy.monitor.interval`)."
         },
         {
           "name": "4.8 Ver Detalles Transferencia (ver errorDetail)",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}" }
-          }
+            "url": {
+              "raw": "{{CONSUMER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/{{transfer_id}}",
+              "host": [
+                "{{CONSUMER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "{{transfer_id}}"
+              ]
+            }
+          },
+          "description": "Muestra los detalles completos de la transferencia terminada por el Policy Monitor.\n\n**Endpoint:** `GET /transferprocesses/{{transfer_id}}`\n\n**Campo clave: `errorDetail`** — Contiene el motivo por el que el Policy Monitor termino la transferencia. Tipicamente indica que la policy del agreement ya no se satisface (constraint temporal expirado).\n\nEsto demuestra el ciclo completo del scope `policy.monitor`: vigilancia continua → deteccion de incumplimiento → terminacion automatica."
         }
       ]
     },
     {
       "name": "5. Consultas Auxiliares (Proveedor)",
-      "description": "Endpoints utiles para verificar el estado en el lado del proveedor.",
+      "description": "# Consultas Auxiliares (Proveedor)\n\nEndpoints utiles para inspeccionar y gestionar recursos en el lado del **proveedor**.\n\nEstos requests no forman parte de los casos de uso, pero son utiles para:\n- Verificar que los assets, policies y contract definitions se crearon correctamente\n- Inspeccionar agreements y transferencias desde la perspectiva del proveedor\n- Limpiar recursos despues de las pruebas",
       "item": [
         {
           "name": "5.1 Listar Assets del Proveedor",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets/request" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets/request",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "assets",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"QuerySpec\",\n  \"offset\": 0,\n  \"limit\": 50\n}"
             }
-          }
+          },
+          "description": "Lista todos los assets registrados en el proveedor.\n\n**Endpoint:** `POST /assets/request` (Provider Management API)\n\nDevuelve hasta 50 assets con sus propiedades y data addresses. Util para verificar que los 3 assets del setup se crearon correctamente.\n\n**Respuesta esperada:** Array con `dataset-publico`, `dataset-partners` y `dataset-streaming-iot`."
         },
         {
           "name": "5.2 Listar Policies del Proveedor",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions/request" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions/request",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "policydefinitions",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"QuerySpec\",\n  \"offset\": 0,\n  \"limit\": 50\n}"
             }
-          }
+          },
+          "description": "Lista todas las policy definitions del proveedor.\n\n**Endpoint:** `POST /policydefinitions/request` (Provider Management API)\n\nDevuelve hasta 50 policies con sus reglas ODRL. Util para verificar que las 5 policies del setup se crearon correctamente.\n\n**Respuesta esperada:** Array con las policy definitions y sus permissions/prohibitions/constraints."
         },
         {
           "name": "5.3 Listar Contract Definitions del Proveedor",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions/request" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions/request",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractdefinitions",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"QuerySpec\",\n  \"offset\": 0,\n  \"limit\": 50\n}"
             }
-          }
+          },
+          "description": "Lista todas las contract definitions del proveedor.\n\n**Endpoint:** `POST /contractdefinitions/request` (Provider Management API)\n\nMuestra como estan vinculados los assets con sus access policies y contract policies. Util para verificar el setup y entender que policy se evalua en cada scope.\n\n**Respuesta esperada:** Array con `contrato-publico`, `contrato-partners` y `contrato-streaming-temporal`."
         },
         {
           "name": "5.4 Listar Contract Agreements del Proveedor",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractagreements/request" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractagreements/request",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractagreements",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"QuerySpec\",\n  \"offset\": 0,\n  \"limit\": 50\n}"
             }
-          }
+          },
+          "description": "Lista todos los contract agreements firmados en el proveedor.\n\n**Endpoint:** `POST /contractagreements/request` (Provider Management API)\n\nMuestra los contratos ya firmados con sus policies acordadas y timestamps. Util para verificar el `contractSigningDate` (referencia para constraints temporales).\n\n**Respuesta esperada:** Array de agreements con su assetId, policy y fecha de firma."
         },
         {
           "name": "5.5 Listar Transferencias del Proveedor",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/request" },
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/transferprocesses/request",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "transferprocesses",
+                "request"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"@context\": { \"@vocab\": \"https://w3id.org/edc/v0.0.1/ns/\" },\n  \"@type\": \"QuerySpec\",\n  \"offset\": 0,\n  \"limit\": 50\n}"
             }
-          }
+          },
+          "description": "Lista todas las transferencias desde la perspectiva del proveedor.\n\n**Endpoint:** `POST /transferprocesses/request` (Provider Management API)\n\nComplementa la vista del consumidor. Permite ver el estado de las transferencias y detectar cuales fueron terminadas por el Policy Monitor.\n\n**Respuesta esperada:** Array de transfer processes con estado, tipo y detalles."
         },
         {
           "name": "5.6 Eliminar Asset",
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets/dataset-publico" }
-          }
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/assets/dataset-publico",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "assets",
+                "dataset-publico"
+              ]
+            }
+          },
+          "description": "Elimina el asset `dataset-publico` del proveedor.\n\n**Endpoint:** `DELETE /assets/dataset-publico` (Provider Management API)\n\n**Nota:** Cambiar el ID en la URL para eliminar otros assets. No se puede eliminar un asset que tenga contract definitions asociadas activas.\n\n**Respuesta esperada:** `204 No Content` si se elimino correctamente."
         },
         {
           "name": "5.7 Eliminar Policy Definition",
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions/policy-acceso-abierto" }
-          }
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/policydefinitions/policy-acceso-abierto",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "policydefinitions",
+                "policy-acceso-abierto"
+              ]
+            }
+          },
+          "description": "Elimina la policy `policy-acceso-abierto` del proveedor.\n\n**Endpoint:** `DELETE /policydefinitions/policy-acceso-abierto` (Provider Management API)\n\n**Nota:** Cambiar el ID en la URL para eliminar otras policies. No se puede eliminar una policy que este en uso por un contract definition.\n\n**Respuesta esperada:** `204 No Content` si se elimino correctamente."
         },
         {
           "name": "5.8 Eliminar Contract Definition",
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": { "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions/contrato-publico" }
-          }
+            "url": {
+              "raw": "{{PROVIDER_MANAGEMENT_URL}}/{{API_VERSION}}/contractdefinitions/contrato-publico",
+              "host": [
+                "{{PROVIDER_MANAGEMENT_URL}}"
+              ],
+              "path": [
+                "{{API_VERSION}}",
+                "contractdefinitions",
+                "contrato-publico"
+              ]
+            }
+          },
+          "description": "Elimina el contract definition `contrato-publico` del proveedor.\n\n**Endpoint:** `DELETE /contractdefinitions/contrato-publico` (Provider Management API)\n\n**Nota:** Cambiar el ID en la URL para eliminar otros contract definitions. Eliminar un contract definition no afecta a agreements ya firmados.\n\n**Respuesta esperada:** `204 No Content` si se elimino correctamente."
         }
       ]
     }
