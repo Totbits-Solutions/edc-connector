@@ -14,13 +14,23 @@
 
 plugins {
     `java-library`
+    application
 }
 
 dependencies {
-    implementation(project(":dist:bom:controlplane-base-bom")) {
-        exclude("org.eclipse.edc", "transfer-data-plane-signaling")
-    }
+    implementation(project(":dist:bom:controlplane-base-bom"))
     implementation(project(":extensions:common:iam:iam-mock"))
+}
+
+application {
+    mainClass.set("org.eclipse.edc.boot.system.runtime.BaseRuntime")
+}
+
+tasks.named<JavaExec>("run") {
+    workingDir = rootProject.projectDir
+    // Forward all -Dedc.* system properties from Gradle to the forked JVM
+    systemProperties(System.getProperties().filter { (k, _) -> k.toString().startsWith("edc.") }
+        .map { (k, v) -> k.toString() to v.toString() }.toMap())
 }
 
 edcBuild {

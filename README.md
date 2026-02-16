@@ -76,6 +76,7 @@ Cada documento incluye:
 ### Arrancar los conectores para pruebas
 
 Para ejecutar los casos de uso se necesitan **dos instancias** del EDC Connector (proveedor y consumidor).
+Se usa Gradle para arrancar cada instancia con la tarea `run` del plugin `application`.
 
 #### Requisitos previos
 
@@ -88,17 +89,10 @@ Para ejecutar los casos de uso se necesitan **dos instancias** del EDC Connector
 ./gradlew build -x test
 ```
 
-#### Paso 2: Compilar los runtimes de test
+#### Paso 2: Crear ficheros de configuracion
 
-El proyecto incluye runtimes preconfigurados para pruebas en `system-tests/e2e-transfer-test/`.
-El control plane usa `dist:bom:controlplane-base-bom` + `iam-mock` (autenticacion simulada para testing).
-
-```bash
-./gradlew :system-tests:e2e-transfer-test:control-plane:build
-./gradlew :system-tests:e2e-transfer-test:data-plane:build
-```
-
-#### Paso 3: Crear ficheros de configuracion
+> Los ficheros `provider.properties` y `consumer.properties` ya estan incluidos en la raiz del repositorio.
+> Si no los tienes, crealos con el contenido indicado abajo.
 
 **Proveedor** (`provider.properties`):
 
@@ -136,23 +130,26 @@ edc.negotiation.consumer.send.retry.limit=3
 edc.negotiation.consumer.send.retry.base-delay.ms=500
 ```
 
-#### Paso 4: Arrancar los conectores
+#### Paso 3: Arrancar los conectores
 
-**Terminal 1 — Proveedor:**
+Abrir **dos terminales** en la raiz del proyecto y ejecutar un comando en cada una.
+Cada comando compila lo necesario y arranca el conector; la terminal queda ocupada mostrando los logs.
 
-```bash
-java -Dedc.fs.config=provider.properties \
-     -jar system-tests/e2e-transfer-test/control-plane/build/libs/*.jar
-```
-
-**Terminal 2 — Consumidor:**
+**Terminal 1 -- Proveedor:**
 
 ```bash
-java -Dedc.fs.config=consumer.properties \
-     -jar system-tests/e2e-transfer-test/control-plane/build/libs/*.jar
+./gradlew :system-tests:e2e-transfer-test:control-plane:run -Dedc.fs.config=provider.properties
 ```
 
-#### Paso 5: Verificar que estan corriendo
+**Terminal 2 -- Consumidor:**
+
+```bash
+./gradlew :system-tests:e2e-transfer-test:control-plane:run -Dedc.fs.config=consumer.properties
+```
+
+Espera a ver el mensaje `Runtime <id> ready` en cada terminal antes de continuar.
+
+#### Paso 4: Verificar que estan corriendo
 
 ```bash
 # Proveedor
@@ -162,6 +159,8 @@ curl http://localhost:18080/api/check/health
 curl http://localhost:28080/api/check/health
 ```
 
+Ambos deben devolver `{"isSystemHealthy":true}`.
+
 #### Puertos resultantes
 
 | Servicio | Proveedor | Consumidor |
@@ -170,6 +169,10 @@ curl http://localhost:28080/api/check/health
 | Management API | `http://localhost:18181/api/management` | `http://localhost:28181/api/management` |
 | Control API | `http://localhost:18183/api/control` | `http://localhost:28183/api/control` |
 | DSP Protocol | `http://localhost:18282/api/dsp` | `http://localhost:28282/api/dsp` |
+
+#### Parar los conectores
+
+Pulsa `Ctrl+C` en cada terminal para detener el conector correspondiente.
 
 ### Coleccion Postman
 
